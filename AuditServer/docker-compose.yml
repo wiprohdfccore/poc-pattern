@@ -1,0 +1,62 @@
+version: "2.2"
+
+services:
+ 
+  postgres-audit:
+  
+    image: postgres:15.3
+    container_name: postgres_audit
+    ports:
+      - "5433:5432"
+    environment:
+      - POSTGRES_PASSWORD=audit
+      - POSTGRES_USER=audit
+      - POSTGRES_DB=audit
+    
+    profiles:
+    - postgres
+    - default
+  ibmmq:
+    image: ibmcom/mq
+    container_name: ibmmq
+    ports:
+      - "9443:9443"
+      - "1414:1414"
+    volumes:
+      - /tmp/mq
+    environment:
+      - LICENSE=accept
+      - MQ_QMGR_NAME=QM1
+    profiles:
+    - mq
+    - default
+  
+  app1:
+    image: audit-build
+    container_name: audit-server
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILE=postgres
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/audit
+    profiles:
+    - postgres
+  app2:
+    image: audit-build
+    container_name: audit-server
+    depends_on:
+     postgres-audit:
+      condition: service_started
+     ibmmq:
+      condition: service_started
+      
+    ports:
+      - "7777:8080"
+    environment:
+      - SPRING_PROFILE=default
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-audit:5432/audit
+      - MQ_CONN_NAME=host.docker.internal
+    profiles:
+    - default 
+
+  
